@@ -37,32 +37,28 @@ Professional 3D visualization of Bitcoin trading activity based on historical da
   - Winsorization for outlier treatment
   - 3×3 Grid Activity Zone Detection
 
+## Live Demo
+
+🚀 **[View Live Demo](https://mymdo.github.io/CryptoStatistics/)**
+
 ## Quick Start
 
-### Option 1: Direct Use (Simplest)
-1. Download `bitcoin_3d_viz.html`
-2. Open in any modern browser
+### Option 1: Online (Easiest)
+1. Visit: https://mymdo.github.io/CryptoStatistics/
+2. Data fetches automatically from CoinGecko API
+3. No download needed!
+
+### Option 2: Local Use
+1. Clone the repo: `git clone https://github.com/MYMDO/CryptoStatistics.git`
+2. Open `index.html` in any modern browser
 3. Data fetches automatically from CoinGecko API
 
 ```bash
 # Just open the file
-open bitcoin_3d_viz.html  # macOS
-xdg-open bitcoin_3d_viz.html  # Linux
-start bitcoin_3d_viz.html  # Windows
+open index.html  # macOS
+xdg-open index.html  # Linux
+start index.html  # Windows
 ```
-
-### Option 2: Python Data Generation
-If you want to generate static HTML files with pre-embedded data:
-
-```bash
-pip install requests pandas plotly python-dateutil numpy scipy
-python crypto_3d_viz.py
-```
-
-Generated files:
-- `bitcoin_dashboard.html` - Adaptive dashboard
-- `bitcoin_heatmaps.html` - 2D heatmaps
-- `bitcoin_activity_zones.html` - Activity zones heatmap
 
 ## Usage Guide
 
@@ -114,8 +110,9 @@ For each intersection (day_of_week, day_of_month):
 
 ```
 CryptoStatistics/
-├── bitcoin_3d_viz.html      # Standalone HTML (fetches data via API)
-└── README.md               # This file
+├── index.html                 # Standalone HTML (fetches data via API)
+├── README.md                 # Documentation
+└── LICENSE                   # Apache License 2.0
 ```
 
 **Thats it!** One HTML file contains everything:
