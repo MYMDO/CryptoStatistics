@@ -554,7 +554,7 @@
 
                 // Bought surface
                 const boughtMax = Math.max(...smoothed.bought.flat().filter(v => v > 0));
-                const boughtZ = smoothed.bought.map(row => row.map(v => (v / boughtMax) * 10));
+                const boughtZ = smoothed.bought.slice(1, 32).map(row => row.map(v => (v / boughtMax) * 10));
                 plotData.push({
                     type: 'surface',
                     z: boughtZ,
@@ -570,7 +570,7 @@
 
                 // Sold surface
                 const soldMax = Math.max(...smoothed.sold.flat().filter(v => v > 0));
-                const soldZ = smoothed.sold.map(row => row.map(v => -(v / soldMax) * 10));
+                const soldZ = smoothed.sold.slice(1, 32).map(row => row.map(v => -(v / soldMax) * 10));
                 plotData.push({
                     type: 'surface',
                     z: soldZ,
