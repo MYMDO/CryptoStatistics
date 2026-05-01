@@ -146,6 +146,59 @@
             gap: 8px;
         }
 
+        .toggle-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .toggle-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .toggle-item input[type="checkbox"] {
+            display: none;
+        }
+
+        .toggle-slider {
+            position: relative;
+            width: 40px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #666;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-item input:checked + .toggle-slider {
+            background: rgba(0, 210, 255, 0.4);
+        }
+
+        .toggle-item input:checked + .toggle-slider::before {
+            transform: translateX(20px);
+            background: #00d2ff;
+        }
+
+        .toggle-label {
+            font-weight: 500;
+        }
+
         .btn {
             padding: 10px 15px;
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -269,11 +322,23 @@
 
         <div class="left-panel">
             <div class="control-group">
-                <h3>Display Mode</h3>
-                <div class="btn-group">
-                    <button class="btn active" onclick="setMode('daily')">Daily Data</button>
-                    <button class="btn" onclick="setMode('all')">All Zones</button>
-                    <button class="btn" onclick="setMode('hide')">Hide All</button>
+                <h3>Surface Visibility</h3>
+                <div class="toggle-group">
+                    <label class="toggle-item">
+                        <input type="checkbox" id="toggle-bought" onchange="toggleSurface('bought')">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label" style="color: green;">Bought Zone</span>
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="toggle-sold" onchange="toggleSurface('sold')">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label" style="color: red;">Sold Zone</span>
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="toggle-net" checked onchange="toggleSurface('net')">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label" style="color: #0044aa;">Net Activity</span>
+                    </label>
                 </div>
             </div>
 
@@ -282,9 +347,9 @@
                 <div class="slider-container">
                     <div class="slider-label">
                         <span>Clip Level</span>
-                        <span class="slider-value" id="clip-value">0%</span>
+                        <span class="slider-value" id="clip-value">10%</span>
                     </div>
-                    <input type="range" id="clip-slider" min="0" max="3" step="1" value="0"
+                    <input type="range" id="clip-slider" min="0" max="3" step="1" value="3"
                            oninput="updateClip(this.value)">
                     <div class="info-box">
                         <div class="label">Info</div>
@@ -338,7 +403,8 @@
         // Global variables
         let rawData = [];
         let plotData = [];
-        let currentMode = 'daily';
+        let currentClip = 3; // Default: 10% (index 3)
+        let layout = null; // Will be set in createPlot
         const clipLevels = [0, 1, 5, 10];
 
         // Process embedded data
@@ -390,6 +456,7 @@
                 processData();
                 updatePeaks();
                 createPlot();
+                updateClip(currentClip, false); // Apply default clip without re-rendering
 
             } catch (error) {
                 console.error('Error processing data:', error);
@@ -499,7 +566,7 @@
         function processData() {
             plotData = [];
 
-            // Daily traces
+            // Daily traces (hidden by default)
             const posData = rawData.filter(d => d.isPositive);
             const negData = rawData.filter(d => !d.isPositive);
 
@@ -540,56 +607,60 @@
                 visible: false
             });
 
-            // Generate surface traces for each clip level
-            for (let clipIdx = 0; clipIdx < clipLevels.length; clipIdx++) {
-                const clipLevel = clipLevels[clipIdx];
-                const limits = [clipLevel / 100, clipLevel / 100];
+            // Generate surfaces with current clip level applied to all
+            generateSurfaces();
+        }
 
-                let dataToUse = rawData;
-                if (clipLevel > 0) {
-                    dataToUse = winsorize(rawData, limits);
-                }
+        function generateSurfaces() {
+            // Remove old surfaces (keep first 2 traces - daily data)
+            plotData = plotData.slice(0, 2);
 
-                const smoothed = gaussianSmooth(dataToUse);
+            const clipLevel = clipLevels[currentClip];
+            const limits = [clipLevel / 100, clipLevel / 100];
 
-                // Bought surface
-                const boughtMax = Math.max(...smoothed.bought.flat().filter(v => v > 0));
-                const boughtZ = smoothed.bought.slice(1, 32).map(row => row.map(v => (v / boughtMax) * 10));
-                plotData.push({
-                    type: 'surface',
-                    z: boughtZ,
-                    x: [0, 1, 2, 3, 4, 5, 6],
-                    y: Array.from({length: 31}, (_, i) => i + 1),
-                    colorscale: 'Greens',
-                    opacity: 0.6,
-                    name: `Bought (Clip ${clipLevel}%)`,
-                    showscale: false,
-                    visible: false
-                });
-
-                // Sold surface
-                const soldMax = Math.max(...smoothed.sold.flat().filter(v => v > 0));
-                const soldZ = smoothed.sold.slice(1, 32).map(row => row.map(v => -(v / soldMax) * 10));
-                plotData.push({
-                    type: 'surface',
-                    z: soldZ,
-                    x: [0, 1, 2, 3, 4, 5, 6],
-                    y: Array.from({length: 31}, (_, i) => i + 1),
-                    colorscale: 'Reds',
-                    opacity: 0.6,
-                    name: `Sold (Clip ${clipLevel}%)`,
-                    showscale: false,
-                    visible: false
-                });
+            let dataToUse = rawData;
+            if (clipLevel > 0) {
+                dataToUse = winsorize(rawData, limits);
             }
 
-            // Net Activity surface (Bought - Sold), visible by default
-            const smoothedDefault = gaussianSmooth(rawData);
+            const smoothed = gaussianSmooth(dataToUse);
+
+            // Bought surface
+            const boughtMax = Math.max(...smoothed.bought.flat().filter(v => v > 0));
+            const boughtZ = smoothed.bought.slice(1, 32).map(row => row.map(v => (v / boughtMax) * 10));
+            plotData.push({
+                type: 'surface',
+                z: boughtZ,
+                x: [0, 1, 2, 3, 4, 5, 6],
+                y: Array.from({length: 31}, (_, i) => i + 1),
+                colorscale: 'Greens',
+                opacity: 0.6,
+                name: `Bought (Clip ${clipLevel}%)`,
+                showscale: false,
+                visible: false
+            });
+
+            // Sold surface
+            const soldMax = Math.max(...smoothed.sold.flat().filter(v => v > 0));
+            const soldZ = smoothed.sold.slice(1, 32).map(row => row.map(v => -(v / soldMax) * 10));
+            plotData.push({
+                type: 'surface',
+                z: soldZ,
+                x: [0, 1, 2, 3, 4, 5, 6],
+                y: Array.from({length: 31}, (_, i) => i + 1),
+                colorscale: 'Reds',
+                opacity: 0.6,
+                name: `Sold (Clip ${clipLevel}%)`,
+                showscale: false,
+                visible: false
+            });
+
+            // Net Activity surface (Bought - Sold)
             const netZ = [];
             for (let day = 1; day <= 31; day++) {
                 const row = [];
                 for (let dow = 0; dow < 7; dow++) {
-                    row.push(smoothedDefault.bought[day][dow] - smoothedDefault.sold[day][dow]);
+                    row.push(smoothed.bought[day][dow] - smoothed.sold[day][dow]);
                 }
                 netZ.push(row);
             }
@@ -602,7 +673,7 @@
                 y: Array.from({length: 31}, (_, i) => i + 1),
                 colorscale: 'RdBu',
                 opacity: 0.8,
-                name: 'Net Activity (Bought - Sold)',
+                name: `Net Activity (Clip ${clipLevel}%)`,
                 showscale: true,
                 colorbar: { title: 'Net Activity', x: 1.1, len: 0.7 },
                 visible: true
@@ -610,7 +681,7 @@
         }
 
         function createPlot() {
-            const layout = {
+            layout = {
                 title: {
                     text: 'Bitcoin 3D Activity Visualization (365 Days)<br><sub>Axes: Day of Week | Day of Month | Price Change %</sub>',
                     font: { size: 16 },
@@ -649,39 +720,40 @@
             });
         }
 
-        function setMode(mode) {
-            currentMode = mode;
-            const numPairs = clipLevels.length;
-            let visibility = new Array(2 + numPairs * 2 + 1).fill(false);
-
-            if (mode === 'daily') {
-                visibility[0] = true;
-                visibility[1] = true;
-                visibility[visibility.length - 1] = true;
-            } else if (mode === 'all') {
-                visibility = visibility.map(() => true);
+        function toggleSurface(type) {
+            const visibility = plotData.map(t => t.visible);
+            if (type === 'bought') {
+                visibility[2] = !visibility[2];
+                document.getElementById('toggle-bought').checked = visibility[2];
+            } else if (type === 'sold') {
+                visibility[3] = !visibility[3];
+                document.getElementById('toggle-sold').checked = visibility[3];
+            } else if (type === 'net') {
+                visibility[4] = !visibility[4];
+                document.getElementById('toggle-net').checked = visibility[4];
             }
-
             Plotly.restyle('plotly-div', { visible: visibility });
-
-            // Update button states
-            document.querySelectorAll('.left-panel .btn').forEach(function(btn) {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
         }
 
         function updateClip(index) {
-            const numPairs = clipLevels.length;
-            index = parseInt(index);
-            document.getElementById('clip-value').textContent = ['0%', '1%', '5%', '10%'][index];
+            currentClip = parseInt(index);
+            document.getElementById('clip-value').textContent = ['0%', '1%', '5%', '10%'][currentClip];
 
-            const visibility = new Array(2 + numPairs * 2 + 1).fill(false);
-            visibility[2 + index * 2] = true;
-            visibility[2 + index * 2 + 1] = true;
-            visibility[visibility.length - 1] = true; // Keep net activity visible
+            // Regenerate surfaces with new clip level
+            generateSurfaces();
 
-            Plotly.restyle('plotly-div', { visible: visibility });
+            // Get current visibility states
+            const boughtChecked = document.getElementById('toggle-bought').checked;
+            const soldChecked = document.getElementById('toggle-sold').checked;
+            const netChecked = document.getElementById('toggle-net').checked;
+
+            // Update visibility
+            plotData[2].visible = boughtChecked;
+            plotData[3].visible = soldChecked;
+            plotData[4].visible = netChecked;
+
+            // Redraw plot
+            Plotly.react('plotly-div', plotData, layout);
         }
 
         function updatePeaks() {
