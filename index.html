@@ -416,8 +416,9 @@
 
         // Gaussian smoothing function
         function gaussianSmooth(data, sigma = 1.5) {
-            const boughtGrid = Array(32).fill().map(() => Array(7).fill(0));
-            const soldGrid = Array(32).fill().map(() => Array(7).fill(0));
+            // Arrays: index 0 unused, use 1-31 for days
+            const boughtGrid = Array(33).fill().map(() => Array(7).fill(0));
+            const soldGrid = Array(33).fill().map(() => Array(7).fill(0));
 
             data.forEach(d => {
                 const score = d.volume * Math.abs(d.priceChangePct);
@@ -438,36 +439,45 @@
             const normKernel = kernel.map(k => k / kernelSum);
 
             // Smooth along day-of-week axis (with wrap-around)
-            const boughtSmoothed = Array(32).fill().map(() => Array(7).fill(0));
-            const soldSmoothed = Array(32).fill().map(() => Array(7).fill(0));
+            const boughtSmoothed = Array.from({length: 33}, () => Array(7).fill(0));
+            const soldSmoothed = Array.from({length: 33}, () => Array(7).fill(0));
 
             for (let day = 1; day <= 31; day++) {
+                if (!boughtGrid[day]) continue;  // Skip if no data for this day
                 for (let dow = 0; dow < 7; dow++) {
                     let boughtSum = 0, soldSum = 0;
                     for (let k = -kernelSize; k <= kernelSize; k++) {
                         const idx = (dow + k + 7) % 7;
-                        boughtSum += (boughtGrid[day] ? boughtGrid[day][idx] : 0) * normKernel[k + kernelSize];
-                        soldSum += (soldGrid[day] ? soldGrid[day][idx] : 0) * normKernel[k + kernelSize];
+                        boughtSum += (boughtGrid[day][idx] || 0) * normKernel[k + kernelSize];
+                        soldSum += (soldGrid[day][idx] || 0) * normKernel[k + kernelSize];
                     }
-                    if (boughtGrid[day]) boughtSmoothed[day][dow] = boughtSum;
-                    if (soldGrid[day]) soldSmoothed[day][dow] = soldSum;
+                    boughtSmoothed[day][dow] = boughtSum;
+                    soldSmoothed[day][dow] = soldSum;
                 }
             }
 
             // Smooth along day-of-month axis (no wrap)
-            const boughtFinal = Array(32).fill().map(() => Array(7).fill(0));
-            const soldFinal = Array(32).fill().map(() => Array(7).fill(0));
+            const boughtFinal = Array.from({length: 33}, () => Array(7).fill(0));
+            const soldFinal = Array.from({length: 33}, () => Array(7).fill(0));
 
             for (let day = 1; day <= 31; day++) {
+                if (!boughtSmoothed[day]) continue; // Skip if no data
                 for (let dow = 0; dow < 7; dow++) {
                     let boughtSum = 0, soldSum = 0;
                     for (let k = -kernelSize; k <= kernelSize; k++) {
                         const d = day + k;
-                        if (d >= 1 && d <= 31) {
-                            boughtSum += (boughtSmoothed[d] ? boughtSmoothed[d][dow] : 0) * normKernel[k + kernelSize];
-                            soldSum += (soldSmoothed[d] ? soldSmoothed[d][dow] : 0) * normKernel[k + kernelSize];
+                        if (d >= 1 && d <= 31 && boughtSmoothed[d]) {
+                            boughtSum += boughtSmoothed[d][dow] * normKernel[k + kernelSize];
+                            soldSum += soldSmoothed[d][dow] * normKernel[k + kernelSize];
                         }
                     }
+                    boughtFinal[day][dow] = boughtSum;
+                    soldFinal[day][dow] = soldSum;
+                }
+            }
+
+            return { bought: boughtFinal, sold: soldFinal };
+        }
                     boughtFinal[day][dow] = boughtSum;
                     soldFinal[day][dow] = soldSum;
                 }
