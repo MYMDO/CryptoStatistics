@@ -312,17 +312,17 @@
 
             <div class="control-group">
                 <h3>Legend</h3>
-                <div class="info-box">
-                    <div style="color: green; margin-bottom: 5px;">● Bought (Price Up)</div>
-                    <div style="color: red; margin-bottom: 5px;">● Sold (Price Down)</div>
-                    <div style="color: #00d2ff;">● Activity Zone (Gaussian)</div>
-                    <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 10px 0;">
-                    <div style="font-size: 0.75rem; opacity: 0.8;">
-                        X: Day of Week<br>
-                        Y: Day of Month<br>
-                        Z: Price Change %
+                    <div class="info-box">
+                        <div style="color: green; margin-bottom: 5px;">● Bought (Price Up)</div>
+                        <div style="color: red; margin-bottom: 5px;">● Sold (Price Down)</div>
+                        <div style="color: #0044aa; margin-bottom: 5px;">● Net Activity (Bought - Sold)</div>
+                        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 10px 0;">
+                        <div style="font-size: 0.75rem; opacity: 0.8;">
+                            X: Day of Week<br>
+                            Y: Day of Month<br>
+                            Z: Price Change %
+                        </div>
                     </div>
-                </div>
             </div>
         </div>
 
@@ -520,7 +520,7 @@
                 },
                 text: posData.map(d => `Date: ${formatDate(d.date)}<br>Price: $${d.price.toFixed(2)}<br>Change: +${d.priceChangePct.toFixed(2)}%<br>Volume: $${d.volume.toLocaleString()}`),
                 hoverinfo: 'text',
-                visible: true
+                visible: false
             });
 
             plotData.push({
@@ -537,7 +537,7 @@
                 },
                 text: negData.map(d => `Date: ${formatDate(d.date)}<br>Price: $${d.price.toFixed(2)}<br>Change: ${d.priceChangePct.toFixed(2)}%<br>Volume: $${d.volume.toLocaleString()}`),
                 hoverinfo: 'text',
-                visible: true
+                visible: false
             });
 
             // Generate surface traces for each clip level
@@ -563,9 +563,8 @@
                     colorscale: 'Greens',
                     opacity: 0.6,
                     name: `Bought (Clip ${clipLevel}%)`,
-                    showscale: true,
-                    colorbar: { title: 'Bought', x: 1.1, len: 0.5, y: 0.75 },
-                    visible: clipIdx === 0
+                    showscale: false,
+                    visible: false
                 });
 
                 // Sold surface
@@ -579,11 +578,35 @@
                     colorscale: 'Reds',
                     opacity: 0.6,
                     name: `Sold (Clip ${clipLevel}%)`,
-                    showscale: true,
-                    colorbar: { title: 'Sold', x: 1.1, len: 0.5, y: 0.25 },
-                    visible: clipIdx === 0
+                    showscale: false,
+                    visible: false
                 });
             }
+
+            // Net Activity surface (Bought - Sold), visible by default
+            const smoothedDefault = gaussianSmooth(rawData);
+            const netZ = [];
+            for (let day = 1; day <= 31; day++) {
+                const row = [];
+                for (let dow = 0; dow < 7; dow++) {
+                    row.push(smoothedDefault.bought[day][dow] - smoothedDefault.sold[day][dow]);
+                }
+                netZ.push(row);
+            }
+            const netMax = Math.max(...netZ.flat().map(v => Math.abs(v)));
+            const netZNorm = netZ.map(row => row.map(v => (v / netMax) * 10));
+            plotData.push({
+                type: 'surface',
+                z: netZNorm,
+                x: [0, 1, 2, 3, 4, 5, 6],
+                y: Array.from({length: 31}, (_, i) => i + 1),
+                colorscale: 'RdBu',
+                opacity: 0.8,
+                name: 'Net Activity (Bought - Sold)',
+                showscale: true,
+                colorbar: { title: 'Net Activity', x: 1.1, len: 0.7 },
+                visible: true
+            });
         }
 
         function createPlot() {
@@ -629,14 +652,14 @@
         function setMode(mode) {
             currentMode = mode;
             const numPairs = clipLevels.length;
-            let visibility = [];
+            let visibility = new Array(2 + numPairs * 2 + 1).fill(false);
 
             if (mode === 'daily') {
-                visibility = [true, true].concat(Array(numPairs * 2).fill(false));
+                visibility[0] = true;
+                visibility[1] = true;
+                visibility[visibility.length - 1] = true;
             } else if (mode === 'all') {
-                visibility = [true, true].concat(Array(numPairs * 2).fill(true));
-            } else if (mode === 'hide') {
-                visibility = [false, false].concat(Array(numPairs * 2).fill(false));
+                visibility = visibility.map(() => true);
             }
 
             Plotly.restyle('plotly-div', { visible: visibility });
@@ -653,9 +676,10 @@
             index = parseInt(index);
             document.getElementById('clip-value').textContent = ['0%', '1%', '5%', '10%'][index];
 
-            const visibility = [true, true].concat(Array(numPairs * 2).fill(false));
+            const visibility = new Array(2 + numPairs * 2 + 1).fill(false);
             visibility[2 + index * 2] = true;
             visibility[2 + index * 2 + 1] = true;
+            visibility[visibility.length - 1] = true; // Keep net activity visible
 
             Plotly.restyle('plotly-div', { visible: visibility });
         }
